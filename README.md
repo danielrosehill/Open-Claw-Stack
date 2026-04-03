@@ -1,5 +1,7 @@
 # Open Claw Stack
 
+![Open Claw Stack Architecture](images/banner.png)
+
 This repository version controls documentation for a unified deployment stack bundling [OpenClaw](https://github.com/openclaw/openclaw) and [MetaMCP](https://github.com/metatool-ai/metamcp).
 
 ## Components
