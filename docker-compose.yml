@@ -1,0 +1,141 @@
+# Open Claw Stack - Unified deployment of OpenClaw + MetaMCP
+# Both services use their official Docker images and deployment patterns.
+
+services:
+  # ── OpenClaw Gateway ────────────────────────────────────────────────
+  # https://docs.openclaw.ai/install/docker
+  openclaw-gateway:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      TZ: ${OPENCLAW_TZ:-UTC}
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./data/openclaw/config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/openclaw/workspace}:/home/node/.openclaw/workspace
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+      - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
+    init: true
+    restart: unless-stopped
+    command:
+      [
+        "node",
+        "dist/index.js",
+        "gateway",
+        "--bind",
+        "${OPENCLAW_GATEWAY_BIND:-lan}",
+        "--port",
+        "18789",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18789/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── OpenClaw CLI ────────────────────────────────────────────────────
+  openclaw-cli:
+    image: ${OPENCLAW_IMAGE:-ghcr.io/openclaw/openclaw:latest}
+    network_mode: "service:openclaw-gateway"
+    cap_drop:
+      - NET_RAW
+      - NET_ADMIN
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      HOME: /home/node
+      TERM: xterm-256color
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      OPENCLAW_ALLOW_INSECURE_PRIVATE_WS: ${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}
+      BROWSER: echo
+      TZ: ${OPENCLAW_TZ:-UTC}
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR:-./data/openclaw/config}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR:-./data/openclaw/workspace}:/home/node/.openclaw/workspace
+    stdin_open: true
+    tty: true
+    init: true
+    entrypoint: ["node", "dist/index.js"]
+    depends_on:
+      - openclaw-gateway
+
+  # ── MetaMCP ─────────────────────────────────────────────────────────
+  # https://docs.metamcp.com
+  metamcp:
+    image: ghcr.io/metatool-ai/metamcp:latest
+    pull_policy: always
+    ports:
+      - "${METAMCP_PORT:-12008}:12008"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-metamcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-m3t4mcp}
+      POSTGRES_DB: ${POSTGRES_DB:-metamcp_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-metamcp_user}:${POSTGRES_PASSWORD:-m3t4mcp}@postgres:5432/${POSTGRES_DB:-metamcp_db}
+      APP_URL: ${METAMCP_APP_URL:-http://localhost:12008}
+      NEXT_PUBLIC_APP_URL: ${METAMCP_APP_URL:-http://localhost:12008}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-this-in-production}
+      TRANSFORM_LOCALHOST_TO_DOCKER_INTERNAL: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL (for MetaMCP) ────────────────────────────────────────
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-metamcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-m3t4mcp}
+      POSTGRES_DB: ${POSTGRES_DB:-metamcp_db}
+    volumes:
+      - openclaw_stack_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-metamcp_user} -d ${POSTGRES_DB:-metamcp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Watchtower (auto-update containers) ─────────────────────────────
+  # https://containrrr.dev/watchtower/
+  watchtower:
+    image: containrrr/watchtower:latest
+    environment:
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-86400}
+      WATCHTOWER_INCLUDE_STOPPED: "false"
+      TZ: ${OPENCLAW_TZ:-UTC}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  # ── Cloudflare Tunnel ───────────────────────────────────────────────
+  # https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+  # Create a tunnel: cloudflared tunnel create openclaw-stack
+  # Then configure ingress rules in the Cloudflare Zero Trust dashboard,
+  # or via config file mounted below.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - openclaw-gateway
+      - metamcp
+
+volumes:
+  openclaw_stack_postgres_data:
+    driver: local
