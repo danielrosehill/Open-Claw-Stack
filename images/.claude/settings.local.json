@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__dsrholdings-desktop__google-workspace-dsr__search_gmail_messages",
+      "mcp__danielpersonal-lan__personal-google-tools__search_gmail_messages"
+    ]
+  }
+}
