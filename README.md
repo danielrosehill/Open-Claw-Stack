@@ -45,6 +45,14 @@ Meta MCP 1 also routes outbound to cloud MCP services over a Cloudflare path:
 
 A second MetaMCP instance pinned to **localhost** on the desktop, intended for tools that are cumbersome to run inside the VM or are better suited to on-device workloads — currently fronting **Blender MCP** and **Revit**.
 
+### Changelog
+
+| Version | Date (DD/MM/YY) | Key changes |
+|---------|-----------------|-------------|
+| **v3** | 06/04/26 | Introduced nested LAN aggregation: experimental **LAN Aggregator GW** (HA, NAS, OpnSense) and experimental **SBC Aggregator** fronting RPI 1/2. Added **Meta MCP 2** pinned to localhost for Blender / Revit and other on-device workloads. Split traffic explicitly into LOCAL vs REMOTE branches out of Meta MCP 1. Added Telegram remote client path via Cloudflare + Tailscale. |
+| **v2** | 05/04/26 | Polished architecture diagram. Two MetaMCP topology formalised: **MetaMCP (local)** on the LAN VM aggregating LAN MCP servers, and **MetaMCP (on VPS)** exposing cloud MCP services via SSE behind Cloudflare. Added Watchtower + Postgres as supporting services. |
+| **v1** | 03/04/26 | Initial whiteboard: single OpenClaw gateway on a home VM with one MetaMCP aggregator and a flat list of MCP backends. Cloudflare Tunnel for remote ingress. |
+
 ### Design intent
 
 - Keep private/LAN-only services strictly on the LAN side, behind nested aggregators.
