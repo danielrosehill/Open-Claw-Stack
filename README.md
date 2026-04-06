@@ -2,7 +2,7 @@
 
 ![Open Claw Stack Architecture](images/openclaw_v2_architecture.png)
 
-![Agentic AI MCP Model v3](diagrams/2026-04-06/processed/agentic-ai-mcp-model-v3.png)
+![Agentic AI MCP Model v3](diagrams/060426/processed/agentic-ai-mcp-model-v3.png)
 
 This repository version controls documentation for a unified deployment stack bundling [OpenClaw](https://github.com/openclaw/openclaw) and [MetaMCP](https://github.com/metatool-ai/metamcp).
 

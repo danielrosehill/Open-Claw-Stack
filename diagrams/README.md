@@ -1,6 +1,6 @@
 # Diagrams
 
-Whiteboard sketches and processed diagrams, organized by date (`YYYY-MM-DD`).
+Whiteboard sketches and processed diagrams, organized by date (`DDMMYY`).
 
 Each dated folder contains:
 
