@@ -53,6 +53,18 @@ A second MetaMCP instance pinned to **localhost** on the desktop, intended for t
 | **v2** | 05/04/26 | Polished architecture diagram. Two MetaMCP topology formalised: **MetaMCP (local)** on the LAN VM aggregating LAN MCP servers, and **MetaMCP (on VPS)** exposing cloud MCP services via SSE behind Cloudflare. Added Watchtower + Postgres as supporting services. |
 | **v1** | 03/04/26 | Initial whiteboard: single OpenClaw gateway on a home VM with one MetaMCP aggregator and a flat list of MCP backends. Cloudflare Tunnel for remote ingress. |
 
+### Aggregation layers (v3)
+
+In the v3 model an individual MCP server can sit behind **up to three nested gateway layers**:
+
+| Layer | Gateway | Role |
+|-------|---------|------|
+| **L1** | **Meta MCP 1** (on the LAN VM) | First-level aggregator that OpenClaw GW talks to. Fans out to local and remote MCP backends. |
+| **L2** | **LAN Aggregator / GW** (experimental) | Second-level aggregator reached locally from L1. Groups LAN-only sources (HA, NAS, OpnSense) and the SBC branch. |
+| **L3** | **SBC Aggregator** (experimental) | Third-level aggregator nested under L2, fronting the small single-board computers (RPI 1, RPI 2). |
+
+So in the worst case, a tool call from the desktop client traverses: **OpenClaw GW → Meta MCP 1 (L1) → LAN Aggregator (L2) → SBC Aggregator (L3) → device MCP**. The point of the experimental L2/L3 branch is to validate that MCP discovery, naming, and tool invocation remain coherent across this many hops.
+
 ### Design intent
 
 - Keep private/LAN-only services strictly on the LAN side, behind nested aggregators.
