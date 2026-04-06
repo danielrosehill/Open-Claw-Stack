@@ -27,7 +27,7 @@ A second-tier aggregator running on the LAN, reached locally from Meta MCP 1. It
 
 - **Home Assistant**
 - **NAS**
-- **OPNsense**
+- **OpnSense**
 - **SBC Aggregator** (experimental) — a further nested aggregator that itself fronts small single-board computers (**RPI 1**, **RPI 2**) exposing their own MCP endpoints.
 
 Both the **LAN Aggregator GW** and the **SBC Aggregator** are experimental. The point of this layout is to validate that MCP tool discovery, naming, and invocation still work cleanly when traffic traverses **multiple gateway layers** (OpenClaw → Meta MCP 1 → LAN Aggregator → SBC Aggregator → device).
@@ -55,10 +55,22 @@ In the v3 model an individual MCP server can sit behind **up to three nested gat
 | Layer | Gateway | Role |
 |-------|---------|------|
 | **L1** | **Meta MCP 1** (on the LAN VM) | First-level aggregator that OpenClaw GW talks to. Fans out to local and remote MCP backends. |
-| **L2** | **LAN Aggregator / GW** (experimental) | Second-level aggregator reached locally from L1. Groups LAN-only sources (HA, NAS, OPNsense) and the SBC branch. |
+| **L2** | **LAN Aggregator / GW** (experimental) | Second-level aggregator reached locally from L1. Groups LAN-only sources (HA, NAS, OpnSense) and the SBC branch. |
 | **L3** | **SBC Aggregator** (experimental) | Third-level aggregator nested under L2, fronting the small single-board computers (RPI 1, RPI 2). |
 
 So in the worst case, a tool call from the desktop client traverses: **OpenClaw GW → Meta MCP 1 (L1) → LAN Aggregator (L2) → SBC Aggregator (L3) → device MCP**. The point of the experimental L2/L3 branch is to validate that MCP discovery, naming, and tool invocation remain coherent across this many hops.
+
+### Suggested MCP servers
+
+A non-exhaustive list of MCP servers that fit naturally into the v3 layout:
+
+| Target | MCP server | Notes |
+|--------|------------|-------|
+| OpnSense | [Pixelworlds/opnsense-mcp-server](https://github.com/Pixelworlds/opnsense-mcp-server) | Sits behind the L2 LAN Aggregator. |
+| Home Assistant | [tevonsb/homeassistant-mcp](https://github.com/tevonsb/homeassistant-mcp) | LAN-side, behind L2. |
+| Blender | [ahujasid/blender-mcp](https://github.com/ahujasid/blender-mcp) | Pinned to Meta MCP 2 (localhost). |
+| Pinecone (RAG) | [pinecone-io/pinecone-mcp](https://github.com/pinecone-io/pinecone-mcp) | Cloud, via remote branch. |
+| Google Workspace | [taylorwilsdon/google_workspace_mcp](https://github.com/taylorwilsdon/google_workspace_mcp) | Cloud, via remote branch. |
 
 ### Design intent
 
