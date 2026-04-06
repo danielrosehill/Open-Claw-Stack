@@ -27,7 +27,7 @@ A second-tier aggregator running on the LAN, reached locally from Meta MCP 1. It
 
 - **Home Assistant**
 - **NAS**
-- **OpnSense**
+- **OPNsense**
 - **SBC Aggregator** (experimental) — a further nested aggregator that itself fronts small single-board computers (**RPI 1**, **RPI 2**) exposing their own MCP endpoints.
 
 Both the **LAN Aggregator GW** and the **SBC Aggregator** are experimental. The point of this layout is to validate that MCP tool discovery, naming, and invocation still work cleanly when traffic traverses **multiple gateway layers** (OpenClaw → Meta MCP 1 → LAN Aggregator → SBC Aggregator → device).
@@ -45,22 +45,17 @@ Meta MCP 1 also routes outbound to cloud MCP services over a Cloudflare path:
 
 A second MetaMCP instance pinned to **localhost** on the desktop, intended for tools that are cumbersome to run inside the VM or are better suited to on-device workloads — currently fronting **Blender MCP** and **Revit**.
 
-### Changelog
-
-| Version | Date (DD/MM/YY) | Key changes |
-|---------|-----------------|-------------|
-| **v3** | 06/04/26 | Introduced nested LAN aggregation: experimental **LAN Aggregator GW** (HA, NAS, OpnSense) and experimental **SBC Aggregator** fronting RPI 1/2. Added **Meta MCP 2** pinned to localhost for Blender / Revit and other on-device workloads. Split traffic explicitly into LOCAL vs REMOTE branches out of Meta MCP 1. Added Telegram remote client path via Cloudflare + Tailscale. |
-| **v2** | 05/04/26 | Polished architecture diagram. Two MetaMCP topology formalised: **MetaMCP (local)** on the LAN VM aggregating LAN MCP servers, and **MetaMCP (on VPS)** exposing cloud MCP services via SSE behind Cloudflare. Added Watchtower + Postgres as supporting services. |
-| **v1** | 03/04/26 | Initial whiteboard: single OpenClaw gateway on a home VM with one MetaMCP aggregator and a flat list of MCP backends. Cloudflare Tunnel for remote ingress. |
-
 ### Aggregation layers (v3)
+
+![v3 MCP Aggregation Layers](diagrams/060426/processed/aggregation-layers-v3.png)
+
 
 In the v3 model an individual MCP server can sit behind **up to three nested gateway layers**:
 
 | Layer | Gateway | Role |
 |-------|---------|------|
 | **L1** | **Meta MCP 1** (on the LAN VM) | First-level aggregator that OpenClaw GW talks to. Fans out to local and remote MCP backends. |
-| **L2** | **LAN Aggregator / GW** (experimental) | Second-level aggregator reached locally from L1. Groups LAN-only sources (HA, NAS, OpnSense) and the SBC branch. |
+| **L2** | **LAN Aggregator / GW** (experimental) | Second-level aggregator reached locally from L1. Groups LAN-only sources (HA, NAS, OPNsense) and the SBC branch. |
 | **L3** | **SBC Aggregator** (experimental) | Third-level aggregator nested under L2, fronting the small single-board computers (RPI 1, RPI 2). |
 
 So in the worst case, a tool call from the desktop client traverses: **OpenClaw GW → Meta MCP 1 (L1) → LAN Aggregator (L2) → SBC Aggregator (L3) → device MCP**. The point of the experimental L2/L3 branch is to validate that MCP discovery, naming, and tool invocation remain coherent across this many hops.
@@ -82,80 +77,19 @@ So in the worst case, a tool call from the desktop client traverses: **OpenClaw 
 | **Watchtower** | Automatic container image updates | — |
 | **Cloudflare Tunnel** | Secure external access without port forwarding | — |
 
-## Architecture
+## Access Patterns
 
-```
-                  ┌───────────────────────────────────┐
-                  │        Desktop / Mobile            │
-                  │                                    │
-                  │   OpenClaw client  or  Browser     │
-                  │   (app / CLI)        (Chat UI)     │
-                  └──────────┬────────────┬────────────┘
-                             │            │
-              ┌──────────────┘            └──────────────┐
-              │ On LAN                       Remote       │
-              │                                           │
-    ┌─────────▼──────────┐            ┌───────────────────▼──┐
-    │  Direct connection  │            │   Cloudflare Tunnel   │
-    │  (LAN IP / anti-   │            │   (secure ingress)    │
-    │   hairpin rule)    │            └───────────┬───────────┘
-    └─────────┬──────────┘                        │
-              │                                   │
-              └──────────────┬────────────────────┘
-                             │
-┌────────────────────────────┼───────────────────────────────────────┐
-│  Home Server / VM          │                                       │
-│  (Docker Compose)          │                                       │
-│                  ┌─────────▼──────────┐                            │
-│                  │     OpenClaw        │                            │
-│                  │     Gateway         │                            │
-│                  │   :18789 / :18790   │                            │
-│                  └───┬─────────────┬───┘                            │
-│                      │             │                                │
-│       MCP Connection 1    MCP Connection 2                          │
-│       (local / LAN)       (cloud, via CF)                           │
-│                      │             │                                │
-│            ┌─────────▼───┐   ┌─────▼──────────────────┐            │
-│            │  MetaMCP    │   │  MetaMCP (on VPS)       │            │
-│            │  (local)    │   │  SSE endpoints secured  │            │
-│            │  :12008     │   │  behind Cloudflare      │            │
-│            └──────┬──────┘   └─────┬──────────────────┘            │
-│                   │                │                                │
-│         ┌─────────┼────────┐       │                                │
-│         │         │        │       │                                │
-│   ┌─────▼──┐ ┌───▼───┐ ┌──▼──┐   │                                │
-│   │ MCP    │ │ MCP   │ │ MCP │   │                                │
-│   │ Server │ │ Server│ │ Srvr│   │                                │
-│   │ (LAN)  │ │ (LAN) │ │(LAN)│   │                                │
-│   └────────┘ └───────┘ └─────┘   │                                │
-│                                   │                                │
-│                      ┌────────────┼────────────┐                   │
-│                      │            │            │                   │
-│                  ┌───▼───┐  ┌─────▼──┐  ┌─────▼──┐                │
-│                  │ Cloud │  │ Cloud  │  │ Cloud  │                │
-│                  │ MCP   │  │ MCP    │  │ MCP    │                │
-│                  │ Svc 1 │  │ Svc 2  │  │ Svc 3  │                │
-│                  └───────┘  └────────┘  └────────┘                │
-│                                                                    │
-│       ┌────────────┐  ┌──────────┐                                 │
-│       │ Watchtower │  │ Postgres │                                 │
-│       │ (updates)  │  │ (MetaMCP)│                                 │
-│       └────────────┘  └──────────┘                                 │
-└────────────────────────────────────────────────────────────────────┘
-```
+### On-LAN access
 
-### Usage Patterns
+![On-LAN access](diagrams/060426/processed/access-onlan-v3.png)
 
-**Client access — on LAN:** The desktop connects directly to the VM's LAN IP (using an anti-hairpin rule or a LAN-specific DNS endpoint). No tunnel overhead.
+When the desktop is on the home network it talks directly to the LAN VM (LAN IP / anti-hairpin DNS), hits OpenClaw GW, which fans out through Meta MCP 1 to LAN MCP servers and outbound to external/cloud MCP services.
 
-**Client access — remote:** From outside the home network, traffic reaches the server via the Cloudflare Tunnel.
+### Remote access via Cloudflare
 
-**MCP topology — two MetaMCP connections:**
+![Remote access via Cloudflare](diagrams/060426/processed/access-remote-cloudflare-v3.png)
 
-1. **MetaMCP (local)** — runs on the same server, aggregates MCP servers on the LAN (home automation, local databases, file systems, etc.). OpenClaw connects to it locally within Docker networking.
-2. **MetaMCP (on VPS)** — a separate MetaMCP instance on a remote VPS, exposing cloud MCP services via SSE endpoints secured behind Cloudflare. OpenClaw connects to it as a remote MCP endpoint.
-
-This split keeps local/private MCP services on the LAN while cloud services are proxied through a hardened remote gateway.
+From off-network, the client (e.g. Telegram) reaches the LAN VM via a Cloudflare Tunnel — no ports opened on the home network. From there the request lands on OpenClaw GW and follows the same internal aggregation chain.
 
 ---
 
